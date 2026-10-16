@@ -5,22 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>임대료 조사 및 분석</title>
   <style>
-    :root{--bg:#f7f8fa;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--accent:#111827;--soft:#f3f4f6}
+    :root{--bg:#f7f8fa;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--accent:#111827;--soft:#f3f4f6;--ok:#166534;--err:#991b1b}
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     .wrap{max-width:1180px;margin:0 auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
     h1{font-size:28px;margin:0 0 4px}.sub{color:var(--muted);font-size:14px}.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(4,1fr)}
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}.label{font-size:12px;color:var(--muted)}.value{font-size:24px;font-weight:700;margin-top:5px}
     .section-title{font-weight:700;margin-bottom:10px}.filters,.formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.formgrid .wide{grid-column:span 2}
     input,select,button{font:inherit} input,select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text)}
-    button{padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer}.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    button{padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
     .analysis{display:grid;grid-template-columns:2fr 1fr;gap:12px}.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.mini .card{background:var(--soft)}
     .tablewrap{overflow:auto;background:#fff;border:1px solid var(--border);border-radius:14px} table{border-collapse:collapse;width:100%;min-width:1000px} th,td{padding:12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:top} th{background:#f9fafb;color:var(--muted);text-align:left;position:sticky;top:0}.num{text-align:right}.center{text-align:center}.note{font-size:12px;color:var(--muted);margin-top:4px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .status{font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;background:#fff}.ok{color:var(--ok)}.err{color:var(--err)}
     @media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}.filters,.formgrid{grid-template-columns:repeat(2,1fr)}.analysis{grid-template-columns:1fr}.mini{grid-template-columns:1fr}.formgrid .wide{grid-column:span 2}}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div><h1>임대료 조사 및 분석</h1><div class="sub">상가 임대매물 비교 · 평당 월세 분석 · 유사매물 기반 임대료 검토</div></div></div>
+  <div class="top">
+    <div><h1>임대료 조사 및 분석</h1><div class="sub">상가 임대매물 비교 · 평당 월세 분석 · 유사매물 기반 임대료 검토</div></div>
+    <div id="apiStatus" class="status">DB 연결 확인 중…</div>
+  </div>
 
   <div class="grid stats">
     <div class="card"><div class="label">등록 매물</div><div id="statCount" class="value">0</div></div>
@@ -37,7 +41,7 @@
       <label>준공구분<select id="ourAge"><option value="new">신축·준신축</option><option value="old">구축</option><option value="all">상관없음</option></select></label>
       <label>도로조건<select id="ourRoad"><option value="main">대로변</option><option value="inner">이면도로</option><option value="all">상관없음</option></select></label>
     </div>
-    <div class="actions"><button id="applyOurBtn" class="primary">분석 적용</button></div>
+    <div class="actions"><button id="applyOurBtn" class="primary" type="button">분석 적용</button></div>
   </div>
 
   <div class="analysis" style="margin-top:12px">
@@ -61,7 +65,7 @@
       <label>엘리베이터<select id="fElevator"><option value="yes">있음</option><option value="no">없음</option></select></label>
       <label class="wide">출처·부동산<input id="fSource" placeholder="예: ○○부동산 / 네이버"></label>
       <label class="wide">비고<input id="fNote" placeholder="예: 병원 추천, 코너 노출 좋음"></label>
-      <div class="wide actions"><button type="submit" class="primary">매물 추가</button><button id="sampleBtn" type="button">예시 데이터 넣기</button><button id="clearBtn" type="button">전체 삭제</button></div>
+      <div class="wide actions"><button id="submitBtn" type="submit" class="primary">매물 추가</button><button id="refreshBtn" type="button">DB 새로고침</button></div>
     </form>
     <div id="formMsg" class="sub" style="margin-top:8px"></div>
   </div>
@@ -69,22 +73,106 @@
   <div class="card" style="margin-top:12px"><div class="section-title">필터</div><div class="filters"><select id="filterFloor"><option value="all">전체 층</option><option value="1">1층</option><option value="2">2층</option><option value="3plus">3층 이상</option></select><select id="filterAge"><option value="all">전체 준공</option><option value="new">신축·준신축</option><option value="old">구축</option></select><select id="filterRoad"><option value="all">전체 도로</option><option value="main">대로변</option><option value="inner">이면도로</option></select><select id="sortBy"><option value="recent">최근 등록순</option><option value="unitDesc">평당월세 높은순</option><option value="unitAsc">평당월세 낮은순</option><option value="rentDesc">월세 높은순</option></select></div></div>
 
   <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>등록일</th><th>위치</th><th class="num">층</th><th class="num">전용</th><th class="num">보증금</th><th class="num">월세</th><th class="num">평당월세</th><th>조건</th><th>출처</th><th class="center">관리</th></tr></thead><tbody id="tableBody"></tbody></table></div>
-  <div class="sub" style="margin-top:10px">현재 버전은 브라우저 로컬 저장소에 저장됩니다. 같은 브라우저에서는 새로고침 후에도 데이터가 유지됩니다.</div>
+  <div class="sub" style="margin-top:10px">데이터는 Cloudflare D1에 저장됩니다. PC와 휴대폰에서 같은 매물 목록을 볼 수 있습니다.</div>
 </div>
 <script>
 (()=>{
- const KEY='rent-analysis-v1'; let data=[]; const $=id=>document.getElementById(id); const fmt=v=>Number(v).toLocaleString('ko-KR')+'만';
- try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}
- const now=new Date(); $('fDate').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
- const save=()=>localStorage.setItem(KEY,JSON.stringify(data)); const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2};
- const daysAgo=s=>{const d=new Date(s+'T00:00:00');return Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-d)/86400000)};
+ const API='https://rent-analysis-api.young8754-f51.workers.dev';
+ let data=[];
+ const $=id=>document.getElementById(id);
+ const fmt=v=>Number(v||0).toLocaleString('ko-KR')+'만';
+ const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2};
+ const now=new Date();
+ const today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+ $('fDate').value=today;
+ const daysAgo=s=>{if(!s)return 99999;const d=new Date(s+'T00:00:00');return Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-d)/86400000)};
+ const setStatus=(text,ok)=>{const el=$('apiStatus');el.textContent=text;el.className='status '+(ok?'ok':'err')};
+ const normalize=x=>({
+   ...x,
+   date:x.registered_date,
+   size:Number(x.exclusive_area),
+   floor:Number(x.floor),
+   deposit:Number(x.deposit||0),
+   rent:Number(x.rent||0),
+   mgmt:Number(x.management_fee||0),
+   age:x.building_type||'old',
+   road:x.road_type||'inner',
+   corner:Number(x.corner)===1?'yes':'no',
+   elevator:Number(x.elevator)===1?'yes':'no'
+ });
+ async function api(path,options={}){
+   const res=await fetch(API+path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
+   const body=await res.json().catch(()=>({}));
+   if(!res.ok) throw new Error(body.detail||body.error||('HTTP '+res.status));
+   return body;
+ }
+ async function loadData(){
+   try{
+     setStatus('DB 불러오는 중…',true);
+     const rows=await api('/properties');
+     data=rows.filter(x=>x.status!=='deleted').map(normalize);
+     setStatus('D1 DB 연결됨',true);
+     render();
+   }catch(err){
+     setStatus('DB 연결 오류',false);
+     $('formMsg').textContent='DB 조회 실패: '+err.message;
+     data=[];render();
+   }
+ }
  function score(x){let s=0,of=Number($('ourFloor').value)||1,os=Number($('ourSize').value)||1;if(x.floor===of)s+=30;else if(Math.abs(x.floor-of)===1)s+=15;let diff=Math.abs(x.size-os)/os;s+=diff<=.1?25:diff<=.25?18:diff<=.5?8:0;if($('ourAge').value==='all'||x.age===$('ourAge').value)s+=20;if($('ourRoad').value==='all'||x.road===$('ourRoad').value)s+=15;if(x.corner==='yes')s+=5;if(x.elevator==='yes')s+=5;return s}
  function filtered(x){let f=$('filterFloor').value,a=$('filterAge').value,r=$('filterRoad').value;return(f==='all'||(f==='3plus'?x.floor>=3:String(x.floor)===f))&&(a==='all'||x.age===a)&&(r==='all'||x.road===r)}
  function analyze(){let os=Number($('ourSize').value)||30,ranked=data.map(x=>({...x,sim:score(x)})).filter(x=>x.sim>=55).sort((a,b)=>b.sim-a.sim).slice(0,10),med=median(ranked.map(x=>x.rent/x.size));if(med===null){$('similarMedian').textContent='-';$('recommendedAsk').textContent='-';$('recommendedDeal').textContent='-';$('analysisText').textContent='유사도 55점 이상인 비교매물이 아직 없습니다.';return}let base=med*os,ask=Math.round(base*1.08/10)*10,low=Math.round(base*.93/10)*10,high=Math.round(base*1.02/10)*10;$('similarMedian').textContent=med.toFixed(1)+'만원/평';$('recommendedAsk').textContent=ask.toLocaleString('ko-KR')+'만원';$('recommendedDeal').textContent=low.toLocaleString('ko-KR')+'~'+high.toLocaleString('ko-KR')+'만원';$('analysisText').textContent=`유사도 55점 이상 매물 ${ranked.length}건을 비교했습니다. 중앙값을 기준으로 광고가와 예상 계약범위를 계산한 참고값입니다.`}
- function render(){let visible=data.filter(filtered),units=visible.map(x=>x.rent/x.size);$('statCount').textContent=data.length;$('statAvg').textContent=units.length?(units.reduce((a,b)=>a+b,0)/units.length).toFixed(1)+'만':'-';let med=median(units);$('statMedian').textContent=med!==null?med.toFixed(1)+'만':'-';$('statRecent').textContent=data.filter(x=>daysAgo(x.date)>=0&&daysAgo(x.date)<=30).length;let sorted=[...visible],sort=$('sortBy').value;if(sort==='recent')sorted.sort((a,b)=>b.date.localeCompare(a.date));if(sort==='unitDesc')sorted.sort((a,b)=>(b.rent/b.size)-(a.rent/a.size));if(sort==='unitAsc')sorted.sort((a,b)=>(a.rent/a.size)-(b.rent/b.size));if(sort==='rentDesc')sorted.sort((a,b)=>b.rent-a.rent);$('tableBody').innerHTML=sorted.map(x=>`<tr><td>${x.date}</td><td><strong>${x.name}</strong><div class="note">${x.note||''}</div></td><td class="num">${x.floor}F</td><td class="num">${x.size}평</td><td class="num">${fmt(x.deposit)}</td><td class="num"><strong>${fmt(x.rent)}</strong></td><td class="num"><strong>${(x.rent/x.size).toFixed(1)}만</strong></td><td>${x.age==='new'?'신축·준신축':'구축'} · ${x.road==='main'?'대로변':'이면'} · ${x.corner==='yes'?'코너':'일반'} · EV ${x.elevator==='yes'?'O':'X'}</td><td>${x.source||'-'}</td><td class="center"><button data-del="${x.id}">삭제</button></td></tr>`).join('')||'<tr><td colspan="10" class="center" style="padding:28px;color:#6b7280">등록된 매물이 없습니다.</td></tr>';document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{data=data.filter(x=>x.id!==b.dataset.del);save();render()});analyze()}
- $('addForm').onsubmit=e=>{e.preventDefault();data.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),name:$('fName').value.trim(),date:$('fDate').value,floor:Number($('fFloor').value),size:Number($('fSize').value),deposit:Number($('fDeposit').value),rent:Number($('fRent').value),mgmt:Number($('fMgmt').value)||0,age:$('fAge').value,road:$('fRoad').value,corner:$('fCorner').value,elevator:$('fElevator').value,source:$('fSource').value.trim(),note:$('fNote').value.trim()});save();$('formMsg').textContent='매물을 추가했습니다.';e.target.reset();$('fDate').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');$('fMgmt').value='0';render()};
- $('sampleBtn').onclick=()=>{if(data.length){$('formMsg').textContent='현재 데이터가 있어 예시 데이터를 추가하지 않았습니다.';return}data=[{id:'s1',name:'낙성대역 인근 A빌딩',date:'2026-10-10',floor:2,size:30,deposit:3000,rent:220,mgmt:20,age:'old',road:'main',corner:'yes',elevator:'no',source:'예시',note:'대로변 코너'},{id:'s2',name:'서울대입구역 인근 B빌딩',date:'2026-10-08',floor:2,size:32,deposit:5000,rent:250,mgmt:25,age:'new',road:'main',corner:'yes',elevator:'yes',source:'예시',note:'준신축, 노출 좋음'},{id:'s3',name:'봉천동 C빌딩',date:'2026-09-20',floor:2,size:35,deposit:3000,rent:190,mgmt:15,age:'old',road:'inner',corner:'no',elevator:'yes',source:'예시',note:'이면도로'}];save();$('formMsg').textContent='예시 데이터를 넣었습니다. 실제 시세가 아닙니다.';render()};
- $('clearBtn').onclick=()=>{if(confirm('등록된 매물을 모두 삭제할까요?')){data=[];save();render()}};['filterFloor','filterAge','filterRoad','sortBy'].forEach(id=>$(id).onchange=render);$('applyOurBtn').onclick=analyze;render();
+ function render(){
+   let visible=data.filter(filtered),units=visible.map(x=>x.rent/x.size);
+   $('statCount').textContent=data.length;
+   $('statAvg').textContent=units.length?(units.reduce((a,b)=>a+b,0)/units.length).toFixed(1)+'만':'-';
+   let med=median(units);$('statMedian').textContent=med!==null?med.toFixed(1)+'만':'-';
+   $('statRecent').textContent=data.filter(x=>daysAgo(x.date)>=0&&daysAgo(x.date)<=30).length;
+   let sorted=[...visible],sort=$('sortBy').value;
+   if(sort==='recent')sorted.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+   if(sort==='unitDesc')sorted.sort((a,b)=>(b.rent/b.size)-(a.rent/a.size));
+   if(sort==='unitAsc')sorted.sort((a,b)=>(a.rent/a.size)-(b.rent/b.size));
+   if(sort==='rentDesc')sorted.sort((a,b)=>b.rent-a.rent);
+   $('tableBody').innerHTML=sorted.map(x=>`<tr><td>${x.date||'-'}</td><td><strong>${escapeHtml(x.name||'')}</strong><div class="note">${escapeHtml(x.note||'')}</div></td><td class="num">${x.floor}F</td><td class="num">${x.size}평</td><td class="num">${fmt(x.deposit)}</td><td class="num"><strong>${fmt(x.rent)}</strong></td><td class="num"><strong>${(x.rent/x.size).toFixed(1)}만</strong></td><td>${x.age==='new'?'신축·준신축':'구축'} · ${x.road==='main'?'대로변':'이면'} · ${x.corner==='yes'?'코너':'일반'} · EV ${x.elevator==='yes'?'O':'X'}</td><td>${escapeHtml(x.source||'-')}</td><td class="center"><button type="button" data-del="${x.id}">삭제</button></td></tr>`).join('')||'<tr><td colspan="10" class="center" style="padding:30px;color:#6b7280">등록된 매물이 없습니다.</td></tr>';
+   document.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>deleteProperty(btn.dataset.del)));
+   analyze();
+ }
+ function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+ async function deleteProperty(id){
+   if(!confirm('이 매물을 삭제 처리할까요? 가격/상태 이력은 DB에 남습니다.'))return;
+   try{await api('/properties/'+id,{method:'DELETE'});$('formMsg').textContent='삭제 처리했습니다.';await loadData()}catch(err){$('formMsg').textContent='삭제 실패: '+err.message}
+ }
+ $('addForm').addEventListener('submit',async e=>{
+   e.preventDefault();
+   const btn=$('submitBtn');btn.disabled=true;$('formMsg').textContent='저장 중…';
+   const body={
+     name:$('fName').value.trim(),
+     registered_date:$('fDate').value,
+     floor:Number($('fFloor').value),
+     exclusive_area:Number($('fSize').value),
+     deposit:Number($('fDeposit').value||0),
+     rent:Number($('fRent').value||0),
+     management_fee:Number($('fMgmt').value||0),
+     building_type:$('fAge').value,
+     road_type:$('fRoad').value,
+     corner:$('fCorner').value==='yes',
+     elevator:$('fElevator').value==='yes',
+     source:$('fSource').value.trim()||null,
+     note:$('fNote').value.trim()||null,
+     status:'active'
+   };
+   try{
+     await api('/properties',{method:'POST',body:JSON.stringify(body)});
+     $('formMsg').textContent='D1 DB에 매물을 저장했습니다.';
+     e.target.reset();$('fDate').value=today;$('fMgmt').value='0';
+     await loadData();
+   }catch(err){$('formMsg').textContent='저장 실패: '+err.message}
+   finally{btn.disabled=false}
+ });
+ ['filterFloor','filterAge','filterRoad','sortBy'].forEach(id=>$(id).addEventListener('change',render));
+ $('applyOurBtn').addEventListener('click',analyze);
+ $('refreshBtn').addEventListener('click',loadData);
+ loadData();
 })();
 </script>
 </body>
